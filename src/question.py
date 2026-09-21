@@ -1,0 +1,129 @@
+from typing import List, Optional
+
+
+class Question:
+    def __init__(
+            self,
+            id: int,
+            type: str,
+            topic: str,
+            question: str,
+            correct_answer: str,
+            options: Optional[List[str]] = None,
+            source: str = "LLM",
+            enabled: bool = True,
+            times_shown: int = 0,
+            times_correct: int = 0,
+            times_incorrect: int = 0,
+    ) -> None:
+        self.id = id
+        self.type = type
+        self.topic = topic
+        self.question = question
+        self.correct_answer = correct_answer
+        self.options = options
+        self.source = source
+        self.enabled = enabled
+        self.times_shown = times_shown
+        self.times_correct = times_correct
+        self.times_incorrect = times_incorrect
+
+    def record_shown(self) -> None:
+        """Record that the question was shown to the user"""
+        self.times_shown += 1
+
+    def record_correct(self) -> None:
+        """Record that the user answered the question correctly"""
+        self.times_correct += 1
+
+    def record_incorrect(self) -> None:
+        """Record that the user answered the question incorrectly"""
+        self.times_incorrect += 1
+
+
+    def get_correct_percentage(self) -> float:
+        """Return the percentage of shown attempts answered correctly"""
+        if self.times_shown == 0:
+            return 0.0
+
+        return (self.times_correct / self.times_shown) * 100
+
+
+    def to_dict(self) -> dict:
+        """Convert the Question object to a dictionary"""
+        return {
+            "id": self.id,
+            "type": self.type,
+            "topic": self.topic,
+            "question": self.question,
+            "correct_answer": self.correct_answer,
+            "options": self.options,
+            "source": self.source,
+            "enabled": self.enabled,
+            "times_shown": self.times_shown,
+            "times_correct": self.times_correct,
+            "times_incorrect": self.times_incorrect,
+        }
+
+    @classmethod
+    def from_dict(cls, data:dict) -> "Question":
+        """Create a Question from a dictionary(for loading from JSON)"""
+        return cls(
+            id=data["id"],
+            type=data["type"],
+            topic=data["topic"],
+            question=data["question"],
+            correct_answer=data["correct_answer"],
+            options=data.get("options"),
+            source=data.get("source", "LLM"),
+            enabled=data.get("enabled", True),
+            times_shown=data.get("times_shown", 0),
+            times_correct=data.get("times_correct", 0),
+            times_incorrect=data.get("times_incorrect", 0),
+        )
+
+    def is_mcq(self) -> bool:
+        """Return TRue if this is a multiple-choice question"""
+        return self.type.upper() == "MCQ"
+
+    def is_freeform(self) -> bool:
+        """Return True if this is a freeform question"""
+        return self.type.upper() == "FREEFORM"
+
+
+    def evaluate_mcq(self, user_answer: str) -> bool:
+        """Evaluate an MCQ answer by comparing directly."""
+        if not self.is_mcq():
+            raise ValueError("evaluate_mcq called on a non-MCQ question")
+
+        user_clean = user_answer.strip().lower()
+        correct_clean = self.correct_answer.strip().lower()
+
+        return user_clean == correct_clean
+
+
+    def __str__(self) -> str:
+        """Human-readable representation."""
+        status = "Enabled" if self.enabled else "Disabled"
+        return (
+            f"[{self.id}] ({self.type}) {self.topic} — {status}\n"
+            f"    Q: {self.question}\n"
+            f"    A: {self.correct_answer}\n"
+            f"    Stats: {self.times_correct}/{self.times_shown} "
+            f"({self.get_correct_percentage():.1f}% correct)"
+        )
+
+    def __repr__(self) -> str:
+        """Developer/debug representation."""
+        return (
+            f"Question(id={self.id}, type='{self.type}', "
+            f"topic='{self.topic}', enabled={self.enabled})"
+         )
+    
+
+
+
+
+
+
+

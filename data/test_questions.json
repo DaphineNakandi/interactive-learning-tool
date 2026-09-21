@@ -1,0 +1,32 @@
+[
+    {
+        "id": 1,
+        "type": "MCQ",
+        "topic": "Python",
+        "question": "What is a list?",
+        "correct_answer": "A collection",
+        "options": [
+            "A collection",
+            "A function",
+            "A loop"
+        ],
+        "source": "LLM",
+        "enabled": true,
+        "times_shown": 0,
+        "times_correct": 0,
+        "times_incorrect": 0
+    },
+    {
+        "id": 2,
+        "type": "freeform",
+        "topic": "Python",
+        "question": "Explain a dictionary.",
+        "correct_answer": "A key-value store",
+        "options": null,
+        "source": "LLM",
+        "enabled": true,
+        "times_shown": 0,
+        "times_correct": 0,
+        "times_incorrect": 0
+    }
+]
