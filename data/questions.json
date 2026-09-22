@@ -12,7 +12,7 @@
             "A database"
         ],
         "source": "LLM",
-        "enabled": true,
+        "enabled": false,
         "times_shown": 0,
         "times_correct": 0,
         "times_incorrect": 0

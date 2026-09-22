@@ -36,7 +36,7 @@ class App:
             elif choice == "4":
                 print("[Test Mode — not yet implemented]")
             elif choice == "5":
-                print("[Manage Questions — not yet implemented]")
+                self.manage_questions_mode()
             else:
                 print("Invalid choice. Please enter 1-6.")
 
@@ -172,7 +172,71 @@ class App:
             options=raw.get("options"),
             source="LLM",
         )
-    
+
+    def manage_questions_mode(self) -> None:
+        """Let the user enable ordisable questions."""
+        print()
+        print("=" * 40)
+        print("  Manage Questions")
+        print("=" * 40)
+
+
+        if not self.quiz_manager.questions:
+            print("No questions stored yet.")
+            print("=" * 40)
+            return
+
+        while True:
+            self._show_compact_list()
+            print()
+
+            choice = input("Enter question ID to toggle (or 'q' to quit: ").strip().lower()
+            if choice == 'q':
+                break
+
+            try:
+                question_id = int(choice)
+            except ValueError:
+                print("Invalid ID. Please enter a number or 'q'.")
+                continue
+
+            question = self.quiz_manager.get_question_by_id(question_id)
+            if question is None:
+                print(f"Question with ID {question_id} not found.")
+                continue
+
+            #Show details
+            print()
+            print("=" * 40)
+            print(question)
+            print("=" * 40)
+
+            new_state = "Disable" if question.enabled else "Enable"
+            confirm = input(f"{new_state} this question? [y/n]: ").strip().lower()
+            if confirm != "y":
+                print("Cancelled")
+                continue
+
+            # Toggle
+            if question.enabled:
+                self.quiz_manager.disable_question(question_id)
+                print(f"Question {question_id} is now DISABLED.")
+            else:
+                self.quiz_manager.enable_question(question_id)
+                print(f"Question {question_id} is now ENABLED.")
+
+            #Save immediately
+            save_questions(self.quiz_manager.questions, QUESTIONS_FILE)
+            print("Saved.")
+
+    def _show_compact_list(self) -> None:
+        """Show a compact table of all questions."""
+        print()
+        print(f"{'ID':<4} {'Status':<10} {'Type':<10} {'Topic'}")
+        print("-" * 50)
+        for q in self.quiz_manager.questions:
+            status = "Enabled" if q.enabled else "Disabled"
+            print(f"{q.id:<4} {status:<10} {q.type:<10} {q.topic}")
 
 
 
@@ -191,4 +255,4 @@ class App:
 
 
 
-    
+
