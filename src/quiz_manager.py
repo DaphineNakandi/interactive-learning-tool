@@ -46,3 +46,16 @@ class QuizManager:
     def get_active_questions(self) -> list[Question]:
         """Return all enabled questions in the collection."""
         return [question for question in self.questions if question.enabled]
+
+
+    def get_next_id(self) -> int:
+        """
+        Return the next avaiable question ID.
+
+        Returns:
+            THe next integer ID (max existing + 1, or 1 if empty).
+        """
+
+        if not self.questions:
+            return 1
+        return max(q.id for q in self.questions) + 1

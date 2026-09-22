@@ -16,5 +16,18 @@
         "times_shown": 0,
         "times_correct": 0,
         "times_incorrect": 0
+    },
+    {
+        "id": 2,
+        "type": "freeform",
+        "topic": "python dictionaries",
+        "question": "What is the output of the following code: `my_dict = {'a': 1, 'b': 2}; my_dict['c'] = 3; print(my_dict)`?",
+        "correct_answer": "{'a': 1, 'b': 2, 'c': 3}",
+        "options": null,
+        "source": "LLM",
+        "enabled": true,
+        "times_shown": 0,
+        "times_correct": 0,
+        "times_incorrect": 0
     }
 ]
