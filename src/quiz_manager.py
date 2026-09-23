@@ -1,4 +1,6 @@
 from src.question import Question
+import random
+
 
 class QuizManager:
     """Manages the collection of questions."""
@@ -67,7 +69,7 @@ class QuizManager:
 
         Questions answered incorrectly appear more often.
         """
-        import random
+        
         active = self.get_active_questions()
         if not active:
             return None

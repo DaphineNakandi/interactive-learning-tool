@@ -16,5 +16,23 @@
         "times_shown": 0,
         "times_correct": 0,
         "times_incorrect": 0
+    },
+    {
+        "id": 2,
+        "type": "MCQ",
+        "topic": "loops",
+        "question": "Which of the following is not a type of loop in programming?",
+        "correct_answer": "Switch Loop",
+        "options": [
+            "For Loop",
+            "While Loop",
+            "Do-While Loop",
+            "Switch Loop"
+        ],
+        "source": "LLM",
+        "enabled": true,
+        "times_shown": 0,
+        "times_correct": 0,
+        "times_incorrect": 0
     }
 ]

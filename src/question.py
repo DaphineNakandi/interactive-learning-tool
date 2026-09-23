@@ -66,7 +66,7 @@ class Question:
         }
 
     @classmethod
-    def from_dict(cls, data:dict) -> "Question":
+    def from_dict(cls, data: dict) -> "Question":
         """Create a Question from a dictionary(for loading from JSON)"""
         return cls(
             id=data["id"],
@@ -83,7 +83,7 @@ class Question:
         )
 
     def is_mcq(self) -> bool:
-        """Return TRue if this is a multiple-choice question"""
+        """Return True if this is a multiple-choice question"""
         return self.type.upper() == "MCQ"
 
     def is_freeform(self) -> bool:

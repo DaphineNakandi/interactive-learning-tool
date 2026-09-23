@@ -1,4 +1,5 @@
 """User interface for the AI Learning Companion."""
+
 import random
 
 from src.quiz_manager import QuizManager
@@ -17,8 +18,17 @@ class App:
     def __init__(self) -> None:
         """Initialize the app and load questions from disk."""
         self.quiz_manager = QuizManager()
-        self.llm_client = LLMClient()
         self.quiz_manager.questions = load_questions(QUESTIONS_FILE)
+
+        try:
+            self.llm_client = LLMClient()
+        except ValueError as e:
+            print(f"  Warning: {e}")
+            print("The app will work, but LLM-dependent modes won't function.")
+            print("Create a `.env` file with `OPENAI_API_KEY=sk-...` to enable them.")
+            print()
+            self.llm_client = None
+
 
     def run(self) -> None:
         """Run the main menu loop."""
@@ -39,84 +49,11 @@ class App:
             elif choice == "3":
                 self.practice_mode()
             elif choice == "4":
-                self.test_mode()           
+                self.test_mode()
             elif choice == "5":
                 self.manage_questions_mode()
             else:
                 print("Invalid choice. Please enter 1-6.")
-
-    def practice_mode(self) -> None:
-        """Practice mode with weighted question selection."""
-        print()
-        print("=" * 40)
-        print(" Practice Mode")
-        print("=" * 40)
-
-        active = self.quiz_manager.get_active_questions()
-        if not active:
-            print("No active questions. Enable some or generate new ones.")
-            return
-
-        while True:
-            question = self.quiz_manager.get_weighted_question()
-            if question is None:
-                break
-
-            correct = self._ask_question(question)
-
-            # Update stats
-            question.record_shown()
-            if correct:
-                question.record_correct()
-                print("Correct!")
-            else:
-                question.record_incorrect()
-                print(f"x Incorrect. Correct answer: {question.correct_answer}")
-
-            print(f"Stats: {question.times_correct}/{question.times_shown}"
-                  f"({question.get_correct_percentage():.1f}%)")
-
-            again = input("\nContinue practicing? [y/n]: ").strip().lower()
-            if again != "y":
-                break
-
-        save_questions(self.quiz_manager.questions, QUESTIONS_FILE)
-        print("\nProgress saved.")
-
-    def _ask_question(self, question: Question) -> bool:
-        """Ask a question and return whether the answer was correct."""
-        print()
-        print("-" * 40)
-        print(f"[{question.id}] ({question.type}) {question.topic}")
-        print(f"Q: {question.question}")
-
-        if question.is_mcq():
-            options = question.options or []
-            for i, opt in enumerate(options, 1):
-                print(f"  {i}. {opt}")
-            user_answer = input("Your answer: ").strip()
-
-            # If user entered a number, convert to the option text
-            if user_answer.isdigit():
-                idx = int(user_answer) - 1
-                if 0 <= idx < len(options):
-                    user_answer = options[idx]
-
-            return question.evaluate_mcq(user_answer)
-        else:
-            user_answer = input("Your answer: ").strip()
-            if not user_answer:
-                print("Empty answer - marked incorrect")
-                return False
-            try:
-                return self.llm_client.evaluate_freeform(
-                    question.question,
-                    question.correct_answer,
-                    user_answer,
-                )
-            except Exception as e:
-                print(f"Error evaluating answer: {e}")
-                return False
 
     def show_menu(self) -> None:
         """Display the main menu."""
@@ -136,6 +73,11 @@ class App:
 
     def generate_questions_mode(self) -> None:
         """Handle the Generate Questions mode."""
+        if self.llm_client is None:
+            print("Generate Questions requires an OpenAI API key.")
+            print("Please add OPENAI_API_KEY to your .env file.")
+            return 
+        
         print()
         topic = input("Enter a topic (e.g., 'Python Dictionaries'): ").strip()
         if not topic:
@@ -170,7 +112,7 @@ class App:
                 continue
 
             self._show_raw_question(raw)
-            choice = input("[A]ccept / [R]eject / [S]kip rest: ").strip().lower()
+            choice = input("[A]ccept / [R]eject / [E]dit / [S]kip rest: ").strip().lower()
 
             if choice == "s":
                 print("Skipping the rest.")
@@ -179,7 +121,18 @@ class App:
                 question = self._raw_to_question(raw, topic)
                 self.quiz_manager.add_question(question)
                 accepted += 1
-                print(f"✅ Accepted (id={question.id})")
+                print(f" Accepted (id={question.id})")
+            elif choice == "e":
+                raw = self._edit_raw_question(raw)
+                self._show_raw_question(raw)
+                confirm = input("Accept edited version? [y/n]: ").strip().lower()
+                if confirm == "y":
+                    question = self._raw_to_question(raw, topic)
+                    self.quiz_manager.add_question(question)
+                    accepted += 1
+                    print(f" Accepted (id={question.id})")
+                else:
+                    print("Edit discarded.")
             else:
                 print("Rejected.")
 
@@ -189,6 +142,67 @@ class App:
         else:
             print("\nNo questions were saved.")
 
+    def _is_valid_question(self, raw: dict) -> bool:
+        """Check if a raw question dict has the required fields."""
+        required = {"type", "question", "correct_answer"}
+        if not required.issubset(raw.keys()):
+            return False
+        if raw["type"].upper() == "MCQ" and not raw.get("options"):
+            return False
+        return True
+
+    def _show_raw_question(self, raw: dict) -> None:
+        """Display a raw question dict to the user."""
+        print()
+        print("=" * 40)
+        print(f"Type: {raw['type']}")
+        print(f"Question: {raw['question']}")
+        if raw["type"].upper() == "MCQ":
+            for i, opt in enumerate(raw.get("options", []), 1):
+                print(f"  {i}. {opt}")
+        print(f"Correct answer: {raw['correct_answer']}")
+        print("=" * 40)
+
+    def _edit_raw_question(self, raw: dict) -> dict:
+        """Let the user edit fields of a raw question dict."""
+        print()
+        print("Editing question. Press Enter to keep the current value.")
+
+        print(f"Current question: {raw['question']}")
+        new_question = input("New question: ").strip()
+        if new_question:
+            raw["question"] = new_question
+
+        print(f"Current correct answer: {raw['correct_answer']}")
+        new_answer = input("New correct answer: ").strip()
+        if new_answer:
+            raw["correct_answer"] = new_answer
+
+        if raw["type"].upper() == "MCQ" and raw.get("options"):
+            print("Current options:")
+            for i, opt in enumerate(raw["options"], 1):
+                print(f"  {i}. {opt}")
+            for i, opt in enumerate(raw["options"], 1):
+                new_opt = input(f"New option {i} (or Enter to keep): ").strip()
+                if new_opt:
+                    raw["options"][i - 1] = new_opt
+
+        return raw
+
+    
+    def _raw_to_question(self, raw: dict, topic: str) -> Question:
+        """Convert a raw dict to a Question with a new ID."""
+        return Question(
+            id=self.quiz_manager.get_next_id(),
+            type=raw["type"],
+            topic=topic,
+            question=raw["question"],
+            correct_answer=raw["correct_answer"],
+            options=raw.get("options"),
+            source="LLM",
+        )
+
+    # ---------- Statistics Mode ----------
 
     def statistics_mode(self) -> None:
         """Display statistics for all stored questions."""
@@ -218,104 +232,49 @@ class App:
 
         print("=" * 40)
 
-    def _is_valid_question(self, raw: dict) -> bool:
-        """Check if a raw question dict has the required fields."""
-        required = {"type", "question", "correct_answer"}
-        if not required.issubset(raw.keys()):
-            return False
-        if raw["type"].upper() == "MCQ" and not raw.get("options"):
-            return False
-        return True
+    # ---------- Practice Mode ----------
 
-    def _show_raw_question(self, raw: dict) -> None:
-        """Display a raw question dict to the user."""
+    def practice_mode(self) -> None:
+        """Practice mode with weighted question selection."""
         print()
         print("=" * 40)
-        print(f"Type: {raw['type']}")
-        print(f"Question: {raw['question']}")
-        if raw["type"].upper() == "MCQ":
-            for i, opt in enumerate(raw.get("options", []), 1):
-                print(f"  {i}. {opt}")
-        print(f"Correct answer: {raw['correct_answer']}")
+        print("  Practice Mode")
         print("=" * 40)
 
-    def _raw_to_question(self, raw: dict, topic: str) -> Question:
-        """Convert a raw dict to a Question with a new ID."""
-        return Question(
-            id=self.quiz_manager.get_next_id(),
-            type=raw["type"],
-            topic=topic,
-            question=raw["question"],
-            correct_answer=raw["correct_answer"],
-            options=raw.get("options"),
-            source="LLM",
-        )
-
-    def manage_questions_mode(self) -> None:
-        """Let the user enable ordisable questions."""
-        print()
-        print("=" * 40)
-        print("  Manage Questions")
-        print("=" * 40)
-
-
-        if not self.quiz_manager.questions:
-            print("No questions stored yet.")
-            print("=" * 40)
+        active = self.quiz_manager.get_active_questions()
+        if not active:
+            print("No active questions. Enable some or generate new ones.")
             return
 
         while True:
-            self._show_compact_list()
-            print()
-
-            choice = input("Enter question ID to toggle (or 'q' to quit: ").strip().lower()
-            if choice == 'q':
+            question = self.quiz_manager.get_weighted_question()
+            if question is None:
                 break
 
-            try:
-                question_id = int(choice)
-            except ValueError:
-                print("Invalid ID. Please enter a number or 'q'.")
-                continue
+            correct = self._ask_question(question)
 
-            question = self.quiz_manager.get_question_by_id(question_id)
-            if question is None:
-                print(f"Question with ID {question_id} not found.")
-                continue
-
-            #Show details
-            print()
-            print("=" * 40)
-            print(question)
-            print("=" * 40)
-
-            new_state = "Disable" if question.enabled else "Enable"
-            confirm = input(f"{new_state} this question? [y/n]: ").strip().lower()
-            if confirm != "y":
-                print("Cancelled")
-                continue
-
-            # Toggle
-            if question.enabled:
-                self.quiz_manager.disable_question(question_id)
-                print(f"Question {question_id} is now DISABLED.")
+            if correct is None:
+                print("(Question skipped.)")
             else:
-                self.quiz_manager.enable_question(question_id)
-                print(f"Question {question_id} is now ENABLED.")
+                question.record_shown()
+                if correct:
+                    question.record_correct()
+                    print(" Correct!")
+                else:
+                    question.record_incorrect()
+                    print(f"X Incorrect. Correct answer: {question.correct_answer}")
 
-            #Save immediately
-            save_questions(self.quiz_manager.questions, QUESTIONS_FILE)
-            print("Saved.")
+                print(f"Stats: {question.times_correct}/{question.times_shown} "
+                      f"({question.get_correct_percentage():.1f}%)")
 
-    def _show_compact_list(self) -> None:
-        """Show a compact table of all questions."""
-        print()
-        print(f"{'ID':<4} {'Status':<10} {'Type':<10} {'Topic'}")
-        print("-" * 50)
-        for q in self.quiz_manager.questions:
-            status = "Enabled" if q.enabled else "Disabled"
-            print(f"{q.id:<4} {status:<10} {q.type:<10} {q.topic}")
+            again = input("\nContinue practicing? [y/n]: ").strip().lower()
+            if again != "y":
+                break
 
+        save_questions(self.quiz_manager.questions, QUESTIONS_FILE)
+        print("\nProgress saved.")
+
+    # ---------- Test Mode ----------
 
     def test_mode(self) -> None:
         """Run a test with random questions and track the score."""
@@ -332,7 +291,6 @@ class App:
         total_available = len(active)
         print(f"Active questions available: {total_available}")
 
-        # Ask for count
         try:
             count_input = input(f"How many questions? (1-{total_available}): ").strip()
             count = int(count_input)
@@ -343,48 +301,144 @@ class App:
             print("Invalid number.")
             return
 
-        # Pick random questions without repetition
         selected = random.sample(active, count)
 
-        # Run the test
         score = 0
+        answered = 0
         for i, question in enumerate(selected, 1):
             print()
             print(f"--- Question {i}/{count} ---")
             correct = self._ask_question(question)
 
-            # Update stats
-            question.record_shown()
-            if correct:
-                question.record_correct()
-                score += 1
+            if correct is None:
+                print("(Question skipped — not counted in score.)")
             else:
-                question.record_incorrect()
+                answered += 1
+                question.record_shown()
+                if correct:
+                    question.record_correct()
+                    score += 1
+                else:
+                    question.record_incorrect()
 
-        # Show final score
         print()
         print("=" * 40)
-        print(f"Test complete! You answered {score}/{count} correctly.")
+        print(f"Test complete! You answered {score}/{answered} correctly.")
         print("=" * 40)
 
-        # Save result and questions
-        save_result(score, count, RESULTS_FILE)
+        save_result(score, answered, RESULTS_FILE)
         save_questions(self.quiz_manager.questions, QUESTIONS_FILE)
         print(f"Result saved to {RESULTS_FILE}.")
 
+    # ---------- Manage Questions Mode ----------
+
+    def manage_questions_mode(self) -> None:
+        """Let the user enable or disable questions."""
+        print()
+        print("=" * 40)
+        print("  Manage Questions")
+        print("=" * 40)
+
+        if not self.quiz_manager.questions:
+            print("No questions stored yet.")
+            print("=" * 40)
+            return
+
+        while True:
+            self._show_compact_list()
+            print()
+
+            choice = input("Enter question ID to toggle (or 'q' to quit): ").strip().lower()
+            if choice == "q":
+                break
+
+            try:
+                question_id = int(choice)
+            except ValueError:
+                print("Invalid ID. Please enter a number or 'q'.")
+                continue
+
+            question = self.quiz_manager.get_question_by_id(question_id)
+            if question is None:
+                print(f"Question with ID {question_id} not found.")
+                continue
+
+            print()
+            print("=" * 40)
+            print(question)
+            print("=" * 40)
+
+            new_state = "Disable" if question.enabled else "Enable"
+            confirm = input(f"{new_state} this question? [y/n]: ").strip().lower()
+            if confirm != "y":
+                print("Cancelled.")
+                continue
+
+            if question.enabled:
+                self.quiz_manager.disable_question(question_id)
+                print(f" Question {question_id} is now DISABLED.")
+            else:
+                self.quiz_manager.enable_question(question_id)
+                print(f" Question {question_id} is now ENABLED.")
+
+            save_questions(self.quiz_manager.questions, QUESTIONS_FILE)
+            print("Saved.")
+
+    def _show_compact_list(self) -> None:
+        """Show a compact table of all questions."""
+        print()
+        print(f"{'ID':<4} {'Status':<10} {'Type':<10} {'Topic'}")
+        print("-" * 50)
+        for q in self.quiz_manager.questions:
+            status = "Enabled" if q.enabled else "Disabled"
+            print(f"{q.id:<4} {status:<10} {q.type:<10} {q.topic}")
+
+    # ---------- Shared Helper ----------
+
+    def _ask_question(self, question: Question) -> bool | None:
+        """Ask a question and return whether the answer was correct.
+
+        Returns:
+            True if correct, False if incorrect, None if evaluation failed.
+        """
+        print()
+        print("-" * 40)
+        print(f"[{question.id}] ({question.type}) {question.topic}")
+        print(f"Q: {question.question}")
+
+        if question.is_mcq():
+            options = question.options or []
+            for i, opt in enumerate(options, 1):
+                print(f"  {i}. {opt}")
+            user_answer = input("Your answer: ").strip()
+
+            if user_answer.isdigit():
+                idx = int(user_answer) - 1
+                if 0 <= idx < len(options):
+                    user_answer = options[idx]
+
+            return question.evaluate_mcq(user_answer)
+        else:
+            user_answer = input("Your answer: ").strip()
+            if not user_answer:
+                print("(Empty answer — marked incorrect)")
+                return False
+
+            if self.llm_client is None:
+                print("(Cannot evaluate freeform answers without an API key.)")
+
+            try:
+                return self.llm_client.evaluate_freeform(
+                    question.question,
+                    question.correct_answer,
+                    user_answer,
+                )
+            except Exception as e:
+                print(f"(Could not evaluate answer: {e})")
+                print("(This question will be skipped — it won't affect your stats.)")
+                return None
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+if __name__ == "__main__":
+    app = App()
+    app.run()
