@@ -12,10 +12,10 @@
             "A database"
         ],
         "source": "LLM",
-        "enabled": false,
-        "times_shown": 0,
-        "times_correct": 0,
-        "times_incorrect": 0
+        "enabled": true,
+        "times_shown": 3,
+        "times_correct": 2,
+        "times_incorrect": 1
     },
     {
         "id": 2,
@@ -25,9 +25,9 @@
         "correct_answer": "{'a': 1, 'b': 2, 'c': 3}",
         "options": null,
         "source": "LLM",
-        "enabled": true,
-        "times_shown": 0,
+        "enabled": false,
+        "times_shown": 3,
         "times_correct": 0,
-        "times_incorrect": 0
+        "times_incorrect": 3
     }
 ]

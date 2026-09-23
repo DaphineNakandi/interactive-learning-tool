@@ -91,16 +91,27 @@ class Question:
         return self.type.upper() == "FREEFORM"
 
 
+    def _get_correct_option_text(self) -> str | None:
+        """Return the full text of the correct option, or None."""
+        if not self.is_mcq() or not self.options:
+            return None
+        ca = self.correct_answer.strip().upper()
+        if len(ca) == 1 and ca.isalpha():
+            idx = ord(ca) - ord("A")
+            if 0 <= idx < len(self.options):
+                return self.options[idx]
+        return self.correct_answer
+
     def evaluate_mcq(self, user_answer: str) -> bool:
-        """Evaluate an MCQ answer by comparing directly."""
+        """Evaluate an MCQ answer by comparing to the correct answer (letter or full text)."""
         if not self.is_mcq():
             raise ValueError("evaluate_mcq called on a non-MCQ question")
 
-        user_clean = user_answer.strip().lower()
-        correct_clean = self.correct_answer.strip().lower()
+        user = user_answer.strip().lower()
+        correct_letter = self.correct_answer.strip().lower()
+        correct_text = (self._get_correct_option_text() or "").strip().lower()
 
-        return user_clean == correct_clean
-
+        return user == correct_letter or user == correct_text
 
     def __str__(self) -> str:
         """Human-readable representation."""
@@ -119,7 +130,18 @@ class Question:
             f"Question(id={self.id}, type='{self.type}', "
             f"topic='{self.topic}', enabled={self.enabled})"
          )
-    
+
+    def get_weight(self) -> float:
+        """
+        Return the selection weight for practice mode.
+
+        Unseen questions get medium weight (0.5).
+        Lower correct % - higher weight (appears more often).
+        Higher correct % - lower weight (appears less often).
+        """
+        if self.times_shown == 0:
+            return 0.5
+        return 1 / (self.get_correct_percentage() / 100 + 0.1)
 
 
 

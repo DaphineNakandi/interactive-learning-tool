@@ -1,12 +1,14 @@
 """User interface for the AI Learning Companion."""
+import random
 
 from src.quiz_manager import QuizManager
 from src.llm_client import LLMClient
 from src.question import Question
-from src.storage import load_questions, save_questions
+from src.storage import load_questions, save_questions, save_result
 
 
 QUESTIONS_FILE = "data/questions.json"
+RESULTS_FILE = "data/results.txt"
 
 
 class App:
@@ -24,6 +26,9 @@ class App:
             self.show_menu()
             choice = input("Enter your choice (1-6): ").strip()
 
+            if not choice:
+                continue
+
             if choice == "6":
                 print("Goodbye!")
                 break
@@ -32,13 +37,86 @@ class App:
             elif choice == "2":
                 self.statistics_mode()
             elif choice == "3":
-                print("[Practice Mode — not yet implemented]")
+                self.practice_mode()
             elif choice == "4":
-                print("[Test Mode — not yet implemented]")
+                self.test_mode()           
             elif choice == "5":
                 self.manage_questions_mode()
             else:
                 print("Invalid choice. Please enter 1-6.")
+
+    def practice_mode(self) -> None:
+        """Practice mode with weighted question selection."""
+        print()
+        print("=" * 40)
+        print(" Practice Mode")
+        print("=" * 40)
+
+        active = self.quiz_manager.get_active_questions()
+        if not active:
+            print("No active questions. Enable some or generate new ones.")
+            return
+
+        while True:
+            question = self.quiz_manager.get_weighted_question()
+            if question is None:
+                break
+
+            correct = self._ask_question(question)
+
+            # Update stats
+            question.record_shown()
+            if correct:
+                question.record_correct()
+                print("Correct!")
+            else:
+                question.record_incorrect()
+                print(f"x Incorrect. Correct answer: {question.correct_answer}")
+
+            print(f"Stats: {question.times_correct}/{question.times_shown}"
+                  f"({question.get_correct_percentage():.1f}%)")
+
+            again = input("\nContinue practicing? [y/n]: ").strip().lower()
+            if again != "y":
+                break
+
+        save_questions(self.quiz_manager.questions, QUESTIONS_FILE)
+        print("\nProgress saved.")
+
+    def _ask_question(self, question: Question) -> bool:
+        """Ask a question and return whether the answer was correct."""
+        print()
+        print("-" * 40)
+        print(f"[{question.id}] ({question.type}) {question.topic}")
+        print(f"Q: {question.question}")
+
+        if question.is_mcq():
+            options = question.options or []
+            for i, opt in enumerate(options, 1):
+                print(f"  {i}. {opt}")
+            user_answer = input("Your answer: ").strip()
+
+            # If user entered a number, convert to the option text
+            if user_answer.isdigit():
+                idx = int(user_answer) - 1
+                if 0 <= idx < len(options):
+                    user_answer = options[idx]
+
+            return question.evaluate_mcq(user_answer)
+        else:
+            user_answer = input("Your answer: ").strip()
+            if not user_answer:
+                print("Empty answer - marked incorrect")
+                return False
+            try:
+                return self.llm_client.evaluate_freeform(
+                    question.question,
+                    question.correct_answer,
+                    user_answer,
+                )
+            except Exception as e:
+                print(f"Error evaluating answer: {e}")
+                return False
 
     def show_menu(self) -> None:
         """Display the main menu."""
@@ -239,6 +317,60 @@ class App:
             print(f"{q.id:<4} {status:<10} {q.type:<10} {q.topic}")
 
 
+    def test_mode(self) -> None:
+        """Run a test with random questions and track the score."""
+        print()
+        print("=" * 40)
+        print("  Test Mode")
+        print("=" * 40)
+
+        active = self.quiz_manager.get_active_questions()
+        if not active:
+            print("No active questions. Enable some or generate new ones.")
+            return
+
+        total_available = len(active)
+        print(f"Active questions available: {total_available}")
+
+        # Ask for count
+        try:
+            count_input = input(f"How many questions? (1-{total_available}): ").strip()
+            count = int(count_input)
+            if count < 1 or count > total_available:
+                print(f"Invalid count. Must be between 1 and {total_available}.")
+                return
+        except ValueError:
+            print("Invalid number.")
+            return
+
+        # Pick random questions without repetition
+        selected = random.sample(active, count)
+
+        # Run the test
+        score = 0
+        for i, question in enumerate(selected, 1):
+            print()
+            print(f"--- Question {i}/{count} ---")
+            correct = self._ask_question(question)
+
+            # Update stats
+            question.record_shown()
+            if correct:
+                question.record_correct()
+                score += 1
+            else:
+                question.record_incorrect()
+
+        # Show final score
+        print()
+        print("=" * 40)
+        print(f"Test complete! You answered {score}/{count} correctly.")
+        print("=" * 40)
+
+        # Save result and questions
+        save_result(score, count, RESULTS_FILE)
+        save_questions(self.quiz_manager.questions, QUESTIONS_FILE)
+        print(f"Result saved to {RESULTS_FILE}.")
 
 
 

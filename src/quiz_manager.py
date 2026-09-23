@@ -59,3 +59,22 @@ class QuizManager:
         if not self.questions:
             return 1
         return max(q.id for q in self.questions) + 1
+
+
+    def get_weighted_question(self) -> Question | None:
+        """
+        Return a weighted random active question.
+
+        Questions answered incorrectly appear more often.
+        """
+        import random
+        active = self.get_active_questions()
+        if not active:
+            return None
+        weights = [q.get_weight() for q in active]
+        return random.choices(active, weights=weights, k=1)[0]
+
+
+
+
+    
