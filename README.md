@@ -114,3 +114,8 @@ Daphine Nakandi
 
 - Turing College — for the sprint structure and review format
 - OpenAI — for the GPT API
+
+## Related Projects
+
+Previous hands-on exercise (D&D Combat Game refactor):
+https://github.com/DaphineNakandi/dnd-combat
